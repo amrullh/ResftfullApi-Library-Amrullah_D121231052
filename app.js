@@ -1,20 +1,19 @@
 const express = require('express');
-const bookRoutes = require('./routes/bookRoutes'); 
+const bookRoutes = require('./routes/bookRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 const port = 3000;
 
-
 app.use(express.json());
-
 app.use(express.static('public'));
+
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next(); 
+    next();
 });
-
+app.use('/auth', authRoutes);
 app.use('/books', bookRoutes);
-
 
 app.get('/test-error', (req, res, next) => {
     next(new Error('Ini adalah error yang disengaja untuk tes!'));
@@ -28,7 +27,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Menjalankan server
+
 app.listen(port, () => {
     console.log(`Server Toko Buku berjalan di http://localhost:${port}`);
 });
