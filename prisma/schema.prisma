@@ -1,11 +1,70 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+
+// 1. Model User
+model User {
+  id       Int     @id @default(autoincrement())
+  username String  @unique
+  email    String  @unique
+  password String
+  name     String?
+
+  // UBAH DI SINI: Ganti tipe Role jadi String, default "MEMBER"
+  role String @default("MEMBER")
+
+  loans     Loan[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 2. Model Book
+model Book {
+  id          Int     @id @default(autoincrement())
+  title       String
+  author      String
+  stock       Int     @default(1)
+  description String?
+
+  categories Category[]
+  loans      Loan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 3. Model Category
+model Category {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  books Book[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 4. Model Loan
+model Loan {
+  id     Int @id @default(autoincrement())
+  userId Int
+  bookId Int
+
+  borrowDate DateTime  @default(now())
+  dueDate    DateTime
+  returnDate DateTime?
+  status     String    @default("BORROWED")
+
+  user User @relation(fields: [userId], references: [id])
+  book Book @relation(fields: [bookId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
