@@ -1,22 +1,29 @@
+// src/app.js
 const express = require('express');
-const bookRoutes = require('./routes/bookRoutes');
-const authRoutes = require('./routes/authRoutes');
-
 const app = express();
-const port = 3000;
+
+require('dotenv').config();
+const port = process.env.PORT || 3000;
+
+const authRoutes = require('./routes/authRoutes');
+const bookRoutes = require('./routes/bookRoutes');
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
 
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
 });
-app.use('/auth', authRoutes);
-app.use('/books', bookRoutes);
 
-app.get('/test-error', (req, res, next) => {
-    next(new Error('Ini adalah error yang disengaja untuk tes!'));
+app.use('/api/auth', authRoutes);
+app.use('/api/books', bookRoutes);
+app.get('/', (req, res) => {
+    res.send('Selamat datang di API Perpustakaan! Akses endpoint di /api/...');
+});
+
+app.use((req, res, next) => {
+    res.status(404).json({ message: 'Endpoint tidak ditemukan' });
 });
 
 app.use((err, req, res, next) => {
@@ -28,6 +35,10 @@ app.use((err, req, res, next) => {
 });
 
 
-app.listen(port, () => {
-    console.log(`Server Toko Buku berjalan di http://localhost:${port}`);
-});
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`✅ Server berjalan di http://localhost:${port}`);
+    });
+}
+
+module.exports = app;
