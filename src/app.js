@@ -37,7 +37,7 @@ app.use((err, req, res, next) => {
 
 if (require.main === module) {
     app.listen(port, () => {
-        console.log(`✅ Server berjalan di http://localhost:${port}`);
+        console.log(`Server berjalan di http://localhost:${port}`);
     });
 }
 

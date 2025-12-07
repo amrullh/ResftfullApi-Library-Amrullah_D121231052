@@ -1,25 +1,37 @@
 const jwt = require('jsonwebtoken');
-const SECRET_KEY = 'rahasia-dong';
+const prisma = require('../config/prisma');
+const SECRET_KEY = process.env.JWT_SECRET;
 
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
         return res.status(401).json({ message: 'Akses Ditolak: Butuh Token!' });
     }
+    try {
 
-    jwt.verify(token, SECRET_KEY, (err, user) => {
-        if (err) {
-            return res.status(403).json({ message: 'Token Tidak Valid!' });
+        const decoded = jwt.verify(token, SECRET_KEY);
+
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.id }
+        });
+
+        if (!user) {
+            return res.status(401).json({ message: 'User tidak ditemukan' });
         }
+
         req.user = user;
         next();
-    });
-};
+
+    }
+    catch (error) {
+        return res.status(403).json({ message: 'Token tidak valid' });
+    };
+}
 
 const requireAdmin = (req, res, next) => {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'ADMIN') {
         return res.status(403).json({ message: 'Akses Terlarang: Khusus Admin!' });
     }
     next();
