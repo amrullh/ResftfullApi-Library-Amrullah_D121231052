@@ -18,8 +18,9 @@ model User {
   password String
   name     String?
 
-  // UBAH DI SINI: Ganti tipe Role jadi String, default "MEMBER"
+  
   role String @default("MEMBER")
+  refreshToken String?
 
   loans     Loan[]
   createdAt DateTime @default(now())

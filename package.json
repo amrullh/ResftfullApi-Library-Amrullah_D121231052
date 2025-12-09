@@ -1,22 +1,30 @@
 {
   "name": "express-web",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "seed": "node prisma/seed.js",
+    "prisma:studio": "npx prisma studio",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:generate": "npx prisma generate"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Express Web API - Sistem Perpustakaan",
   "dependencies": {
     "@prisma/client": "^5.10.2",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "joi": "^17.11.0"
   },
   "devDependencies": {
-    "prisma": "^5.10.2"
+    "prisma": "^5.10.2",
+    "nodemon": "^3.0.3"
   }
 }
