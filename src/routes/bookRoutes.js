@@ -1,74 +1,235 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireAdmin } = require('../middlewares/authMiddleware');
+const validate = require('../middlewares/validationMiddleware');
+const { createBookSchema, updateBookSchema } = require('../validators/bookValidator');
+const prisma = require('../config/prisma');
 
-let books = [
-    { id: 1, title: 'White night', author: 'Fyodor Doestovsky' },
-    { id: 2, title: 'The Crime and Punishment', author: 'Fyodor Doestovsky' }
-];
-let nextId = 3;
+// GET /api/books - List buku (dengan pagination sederhana, tanpa filter)
+router.get('/', async (req, res) => {
+    try {
+        // Pagination parameters
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
 
-const validateBookData = (req, res, next) => {
-    const { title, author } = req.body;
-    if (!title || title.trim() === '' || !author || author.trim() === '') {
-        return res.status(400).json({
-            message: 'Validasi Gagal: Field "title" dan "author" tidak boleh kosong.'
+        // Query database dengan Prisma
+        const books = await prisma.book.findMany({
+            skip,
+            take: limit,
+            include: {
+                categories: true
+            }
+        });
+
+        // Total buku untuk pagination info
+        const totalBooks = await prisma.book.count();
+
+        res.status(200).json({
+            success: true,
+            message: 'Daftar buku berhasil diambil',
+            data: books,
+            pagination: {
+                page,
+                limit,
+                total: totalBooks,
+                pages: Math.ceil(totalBooks / limit)
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan server'
         });
     }
-    next();
-};
-
-router.get('/', (req, res) => {
-    res.status(200).json(books);
 });
 
-router.get('/:id', (req, res) => {
-    const bookId = parseInt(req.params.id);
-    const book = books.find(b => b.id === bookId);
+// GET /api/books/:id - Detail buku
+router.get('/:id', async (req, res) => {
+    try {
+        const bookId = parseInt(req.params.id);
 
-    if (!book) {
-        return res.status(404).json({ message: 'Buku tidak ditemukan' });
+        const book = await prisma.book.findUnique({
+            where: { id: bookId },
+            include: {
+                categories: true,
+                loans: true // Jika ingin melihat data peminjaman
+            }
+        });
+
+        if (!book) {
+            return res.status(404).json({
+                success: false,
+                message: 'Buku tidak ditemukan'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Detail buku berhasil diambil',
+            data: book
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan server'
+        });
     }
-    res.status(200).json(book);
 });
 
-router.post('/', authenticateToken, requireAdmin, validateBookData, (req, res) => {
-    const { title, author } = req.body;
-    const newBook = { id: nextId++, title, author };
+// POST /api/books - Tambah buku (Admin only)
+router.post('/',
+    authenticateToken,
+    requireAdmin,
+    validate(createBookSchema),
+    async (req, res) => {
+        try {
+            const { title, author, stock, description, categories } = req.body;
 
-    books.push(newBook);
-    res.status(201).json(newBook);
-});
+            // Jika ada kategori, kita akan menghubungkannya
+            // categories diharapkan array of category ids
+            const categoryConnect = categories && categories.length > 0
+                ? {
+                    connect: categories.map(catId => ({ id: catId }))
+                }
+                : undefined;
 
-router.put('/:id', authenticateToken, requireAdmin, (req, res) => {
-    const bookId = parseInt(req.params.id);
-    const bookIndex = books.findIndex(b => b.id === bookId);
+            const newBook = await prisma.book.create({
+                data: {
+                    title,
+                    author,
+                    stock: stock || 1,
+                    description,
+                    categories: categoryConnect
+                },
+                include: {
+                    categories: true
+                }
+            });
 
-    if (bookIndex === -1) {
-        return res.status(404).json({ message: 'Buku tidak ditemukan' });
-    }
+            res.status(201).json({
+                success: true,
+                message: 'Buku berhasil ditambahkan',
+                data: newBook
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Terjadi kesalahan server'
+            });
+        }
+    });
 
-    const { title, author } = req.body;
-    const updatedBook = {
-        ...books[bookIndex],
-        title: title || books[bookIndex].title,
-        author: author || books[bookIndex].author
-    };
-    books[bookIndex] = updatedBook;
+// PUT /api/books/:id - Update buku (Admin only)
+router.put('/:id',
+    authenticateToken,
+    requireAdmin,
+    validate(updateBookSchema),
+    async (req, res) => {
+        try {
+            const bookId = parseInt(req.params.id);
+            const { title, author, stock, description, categories } = req.body;
 
-    res.status(200).json(updatedBook);
-});
+            // Cek apakah buku ada
+            const existingBook = await prisma.book.findUnique({
+                where: { id: bookId }
+            });
 
-router.delete('/:id', authenticateToken, requireAdmin, (req, res) => {
-    const bookId = parseInt(req.params.id);
-    const bookIndex = books.findIndex(b => b.id === bookId);
+            if (!existingBook) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Buku tidak ditemukan'
+                });
+            }
 
-    if (bookIndex === -1) {
-        return res.status(404).json({ message: 'Buku tidak ditemukan' });
-    }
+            // Siapkan data update
+            const updateData = {};
+            if (title !== undefined) updateData.title = title;
+            if (author !== undefined) updateData.author = author;
+            if (stock !== undefined) updateData.stock = stock;
+            if (description !== undefined) updateData.description = description;
 
-    books.splice(bookIndex, 1);
-    res.status(204).send();
-});
+            // Jika ada kategori, update relasi
+            if (categories !== undefined) {
+
+                await prisma.book.update({
+                    where: { id: bookId },
+                    data: {
+                        categories: {
+                            set: [] // Hapus semua relasi
+                        }
+                    }
+                });
+
+                // Jika categories array tidak kosong, connect kembali
+                if (categories.length > 0) {
+                    updateData.categories = {
+                        connect: categories.map(catId => ({ id: catId }))
+                    };
+                }
+            }
+
+            const updatedBook = await prisma.book.update({
+                where: { id: bookId },
+                data: updateData,
+                include: {
+                    categories: true
+                }
+            });
+
+            res.status(200).json({
+                success: true,
+                message: 'Buku berhasil diperbarui',
+                data: updatedBook
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Terjadi kesalahan server'
+            });
+        }
+    });
+
+// DELETE /api/books/:id - Hapus buku (Admin only)
+router.delete('/:id',
+    authenticateToken,
+    requireAdmin,
+    async (req, res) => {
+        try {
+            const bookId = parseInt(req.params.id);
+
+            // Cek apakah buku ada
+            const existingBook = await prisma.book.findUnique({
+                where: { id: bookId }
+            });
+
+            if (!existingBook) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Buku tidak ditemukan'
+                });
+            }
+
+            // Hapus buku
+            await prisma.book.delete({
+                where: { id: bookId }
+            });
+
+            res.status(200).json({
+                success: true,
+                message: 'Buku berhasil dihapus'
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Terjadi kesalahan server'
+            });
+        }
+    });
 
 module.exports = router;
