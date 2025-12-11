@@ -4,6 +4,7 @@ const app = express();
 
 const authRoutes = require('./routes/authRoutes');
 const bookRoutes = require('./routes/bookRoutes');
+const loanRoutes = require('./routes/loanRoutes');
 
 // Middleware
 app.use(express.json());
@@ -43,6 +44,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
+app.use('/api/loans', loanRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
