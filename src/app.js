@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 const app = express();
 
 const authRoutes = require('./routes/authRoutes');
@@ -8,22 +10,61 @@ const loanRoutes = require('./routes/loanRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const userRoutes = require('./routes/userRoutes');
 
-// Middleware
+// SECURITY MIDDLEWARE 
+
+// 1. Helmet.js - Security headers
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"]
+        }
+    },
+    crossOriginEmbedderPolicy: false 
+}));
+
+// 2. Rate limiting - Cegah brute force attack
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 menit
+    max: 10, // 10 requests per windowMs untuk auth endpoints
+    message: {
+        success: false,
+        message: 'Terlalu banyak percobaan, coba lagi setelah 15 menit'
+    },
+    skipSuccessfulRequests: true 
+});
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 menit
+    max: 100, // 100 requests per IP
+    message: {
+        success: false,
+        message: 'Terlalu banyak request dari IP Anda'
+    }
+});
+
+// BASIC MIDDLEWARE 
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Logger middleware
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    console.log('Body:', req.body);
-    next();
-});
+// CORS 
 
-// CORS middleware (penting untuk deployment)
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const allowedOrigins = process.env.NODE_ENV === 'production'
+        ? ['https://Perpustroon.com'] 
+        : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080'];
+
+    const origin = req.headers.origin;
+
+    if (allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    }
+
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Credentials', 'true');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -32,25 +73,49 @@ app.use((req, res, next) => {
     next();
 });
 
-// Health check endpoint (WAJIB untuk deployment)
+// LOGGER MIDDLEWARE 
+
+app.use((req, res, next) => {
+    const start = Date.now();
+
+    // Jangan log password atau token
+    const logBody = { ...req.body };
+    if (logBody.password) logBody.password = '***HIDDEN***';
+    if (logBody.refreshToken) logBody.refreshToken = '***HIDDEN***';
+    if (logBody.token) logBody.token = '***HIDDEN***';
+
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log('Headers:', {
+        'content-type': req.headers['content-type'],
+        authorization: req.headers.authorization ? '***PRESENT***' : 'MISSING'
+    });
+    if (Object.keys(logBody).length > 0) {
+        console.log('Body:', logBody);
+    }
+
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`);
+    });
+
+    next();
+});
+
+// ROUTES DENGAN RATE LIMITING 
+
+// Health check - tanpa rate limit
 app.get('/health', (req, res) => {
     res.status(200).json({
         success: true,
         message: 'API is healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV || 'development',
+        version: '1.0.0'
     });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/books', bookRoutes);
-app.use('/api/loans', loanRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/users', userRoutes);
-
-// Root endpoint
+// Root endpoint - tanpa rate limit
 app.get('/', (req, res) => {
     res.json({
         success: true,
@@ -58,22 +123,55 @@ app.get('/', (req, res) => {
         endpoints: {
             auth: '/api/auth',
             books: '/api/books',
+            categories: '/api/categories',
+            loans: '/api/loans',
+            users: '/api/users',
             health: '/health'
+        },
+        security: {
+            rateLimiting: 'Aktif',
+            helmet: 'Aktif',
+            cors: 'Aktif'
         },
         documentation: 'Lihat API-DOCS.md untuk dokumentasi lengkap'
     });
 });
+
+// Auth routes dengan rate limiting ketat
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/refresh-token', authLimiter);
+
+// API routes dengan rate limiting normal
+app.use('/api', apiLimiter);
+
+// Semua routes
+app.use('/api/auth', authRoutes);
+app.use('/api/books', bookRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/loans', loanRoutes);
+app.use('/api/users', userRoutes);
+
+//  ERROR HANDLING
 
 // 404 handler
 app.use('*', (req, res) => {
     res.status(404).json({
         success: false,
         message: 'Endpoint tidak ditemukan',
-        requestedUrl: req.originalUrl
+        requestedUrl: req.originalUrl,
+        availableEndpoints: {
+            auth: '/api/auth',
+            books: '/api/books',
+            categories: '/api/categories',
+            loans: '/api/loans',
+            users: '/api/users',
+            health: '/health'
+        }
     });
 });
 
-// Error handler
+// Global error handler
 app.use((err, req, res, next) => {
     console.error('Error:', err.stack);
 
@@ -96,32 +194,78 @@ app.use((err, req, res, next) => {
     if (err.code === 'P2002') {
         return res.status(409).json({
             success: false,
-            message: 'Data sudah ada'
+            message: 'Data sudah ada (duplicate entry)'
+        });
+    }
+
+    if (err.code === 'P2025') {
+        return res.status(404).json({
+            success: false,
+            message: 'Data tidak ditemukan'
+        });
+    }
+
+    // Rate limit error
+    if (err.status === 429) {
+        return res.status(429).json({
+            success: false,
+            message: 'Terlalu banyak request'
         });
     }
 
     // Default error
     const statusCode = err.status || 500;
     const message = process.env.NODE_ENV === 'production'
-        ? 'Terjadi kesalahan server'
+        ? 'Terjadi kesalahan internal pada server.'
         : err.message;
 
-    res.status(statusCode).json({
+    const errorResponse = {
         success: false,
-        message,
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
+        message
+    };
+
+    // Tambah stack trace hanya di development
+    if (process.env.NODE_ENV !== 'production') {
+        errorResponse.stack = err.stack;
+    }
+
+    res.status(statusCode).json(errorResponse);
 });
 
-// Server startup
+// SERVER STARTUP 
+
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
     app.listen(PORT, () => {
-        console.log(`🚀 Server berjalan di http://localhost:${PORT}`);
-        console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`🔑 JWT Secret: ${process.env.JWT_SECRET ? '✓ Set' : '✗ Not set'}`);
-        console.log(`🔄 Refresh Secret: ${process.env.JWT_REFRESH_SECRET ? '✓ Set' : '✗ Not set'}`);
+        console.log(`
+
+API Perpustakaan Berjalan       
+
+        
+ Server    : http://localhost:${PORT}
+ Environment : ${process.env.NODE_ENV || 'development'}
+        
+ AUTH ENDPOINTS:
+   POST   /api/auth/register
+   POST   /api/auth/login
+   POST   /api/auth/refresh-token
+   POST   /api/auth/logout
+   GET    /api/auth/me
+        
+ RESOURCE ENDPOINTS:
+   GET    /api/books           - Daftar buku
+   GET    /api/categories      - Daftar kategori
+   GET    /api/loans           - Daftar peminjaman
+        
+ SECURITY FEATURES:
+   ✓ Helmet.js headers
+   ✓ Rate limiting
+   ✓ CORS protection
+   ✓ Request logging
+        
+ Health check: http://localhost:${PORT}/health
+        `);
     });
 }
 
