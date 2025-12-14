@@ -50,7 +50,7 @@ async function main() {
         console.log(`✅ User created: ${user.username} (${user.role})`);
     }
 
-    // ========== BUAT CATEGORIES ==========
+    // BUAT CATEGORIES 
     console.log('🏷️  Membuat categories...');
 
     const categories = await Promise.all([
@@ -65,7 +65,7 @@ async function main() {
         console.log(`✅ Category created: ${cat.name}`);
     });
 
-    // ========== BUAT BOOKS ==========
+    //  BUAT BOOKS
     console.log('📚 Membuat books...');
 
     const books = await Promise.all([
@@ -130,7 +130,7 @@ async function main() {
         console.log(`✅ Book created: "${book.title}" by ${book.author}`);
     });
 
-    // ========== BUAT LOANS ==========
+    //  BUAT LOANS 
     console.log('📖 Membuat loans...');
 
     // Hitung due date: 7 hari dari sekarang
@@ -168,18 +168,18 @@ async function main() {
 
     console.log(`✅ ${loans.length} loans created`);
 
-    // ========== FINAL SUMMARY ==========
-    console.log('\n🎉 SEEDING BERHASIL!');
+    // FINAL SUMMARY
+    console.log('\n SEEDING BERHASIL!');
     console.log('='.repeat(40));
-    console.log('📊 DATA SUMMARY:');
-    console.log(`👥 Users: ${users.length + 1} (1 admin, ${users.length} members)`);
-    console.log(`📚 Books: ${books.length}`);
-    console.log(`🏷️  Categories: ${categories.length}`);
-    console.log(`📖 Loans: ${loans.length} (2 active, 1 returned)`);
+    console.log(' DATA SUMMARY:');
+    console.log(` Users: ${users.length + 1} (1 admin, ${users.length} members)`);
+    console.log(` Books: ${books.length}`);
+    console.log(`  Categories: ${categories.length}`);
+    console.log(` Loans: ${loans.length} (2 active, 1 returned)`);
 
-    console.log('\n🔑 TESTING CREDENTIALS:');
+    console.log('\n TESTING CREDENTIALS:');
     console.log('='.repeat(40));
-    console.log('👑 ADMIN:');
+    console.log(' ADMIN:');
     console.log('  Username: admin');
     console.log('  Password: Admin123!');
     console.log('  Email: admin@perpustakaan.com');
@@ -201,7 +201,7 @@ async function main() {
 
 main()
     .catch((error) => {
-        console.error('❌ Seeding gagal:', error);
+        console.error('Seeding gagal:', error);
         process.exit(1);
     })
     .finally(async () => {

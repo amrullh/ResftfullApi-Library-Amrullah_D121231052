@@ -10,7 +10,7 @@ const loanRoutes = require('./routes/loanRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const userRoutes = require('./routes/userRoutes');
 
-// SECURITY MIDDLEWARE 
+// ========== SECURITY MIDDLEWARE ==========
 
 // 1. Helmet.js - Security headers
 app.use(helmet({
@@ -21,39 +21,39 @@ app.use(helmet({
             scriptSrc: ["'self'"]
         }
     },
-    crossOriginEmbedderPolicy: false 
+    crossOriginEmbedderPolicy: false
 }));
 
 // 2. Rate limiting - Cegah brute force attack
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 menit
-    max: 10, // 10 requests per windowMs untuk auth endpoints
+    windowMs: 15 * 60 * 1000,
+    max: 10,
     message: {
         success: false,
         message: 'Terlalu banyak percobaan, coba lagi setelah 15 menit'
     },
-    skipSuccessfulRequests: true 
+    skipSuccessfulRequests: true
 });
 
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 menit
-    max: 100, // 100 requests per IP
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     message: {
         success: false,
         message: 'Terlalu banyak request dari IP Anda'
     }
 });
 
-// BASIC MIDDLEWARE 
+// ========== BASIC MIDDLEWARE ==========
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS 
+// ========== CORS ==========
 
 app.use((req, res, next) => {
     const allowedOrigins = process.env.NODE_ENV === 'production'
-        ? ['https://Perpustroon.com'] 
+        ? ['https://perpustakaan.com']
         : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080'];
 
     const origin = req.headers.origin;
@@ -73,22 +73,18 @@ app.use((req, res, next) => {
     next();
 });
 
-// LOGGER MIDDLEWARE 
+// ========== LOGGER MIDDLEWARE ==========
 
 app.use((req, res, next) => {
     const start = Date.now();
 
-    // Jangan log password atau token
     const logBody = { ...req.body };
     if (logBody.password) logBody.password = '***HIDDEN***';
     if (logBody.refreshToken) logBody.refreshToken = '***HIDDEN***';
     if (logBody.token) logBody.token = '***HIDDEN***';
 
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    console.log('Headers:', {
-        'content-type': req.headers['content-type'],
-        authorization: req.headers.authorization ? '***PRESENT***' : 'MISSING'
-    });
+
     if (Object.keys(logBody).length > 0) {
         console.log('Body:', logBody);
     }
@@ -101,7 +97,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// ROUTES DENGAN RATE LIMITING 
+// ========== ROUTES DENGAN RATE LIMITING ==========
 
 // Health check - tanpa rate limit
 app.get('/health', (req, res) => {
@@ -152,10 +148,10 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/users', userRoutes);
 
-//  ERROR HANDLING
+// ========== ERROR HANDLING ==========
 
-// 404 handler
-app.use('*', (req, res) => {
+// 404 handler (PERBAIKAN: tanpa '*' pattern)
+app.use((req, res) => {
     res.status(404).json({
         success: false,
         message: 'Endpoint tidak ditemukan',
@@ -224,7 +220,6 @@ app.use((err, req, res, next) => {
         message
     };
 
-    // Tambah stack trace hanya di development
     if (process.env.NODE_ENV !== 'production') {
         errorResponse.stack = err.stack;
     }
@@ -232,7 +227,7 @@ app.use((err, req, res, next) => {
     res.status(statusCode).json(errorResponse);
 });
 
-// SERVER STARTUP 
+//  SERVER STARTUP 
 
 const PORT = process.env.PORT || 3000;
 
@@ -240,31 +235,32 @@ if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`
 
-API Perpustakaan Berjalan       
+       API Perpustakaan Berjalan       
 
         
- Server    : http://localhost:${PORT}
- Environment : ${process.env.NODE_ENV || 'development'}
+Server    : http://localhost:${PORT}
+Environment: ${process.env.NODE_ENV || 'development'}
         
- AUTH ENDPOINTS:
-   POST   /api/auth/register
-   POST   /api/auth/login
-   POST   /api/auth/refresh-token
-   POST   /api/auth/logout
-   GET    /api/auth/me
+AUTH ENDPOINTS:
+  POST   /api/auth/register
+  POST   /api/auth/login
+  POST   /api/auth/refresh-token
+  POST   /api/auth/logout
+  GET    /api/auth/me
         
- RESOURCE ENDPOINTS:
-   GET    /api/books           - Daftar buku
-   GET    /api/categories      - Daftar kategori
-   GET    /api/loans           - Daftar peminjaman
+RESOURCE ENDPOINTS:
+  GET    /api/books           - Daftar buku
+  GET    /api/categories      - Daftar kategori
+  GET    /api/loans           - Daftar peminjaman
         
- SECURITY FEATURES:
-   ✓ Helmet.js headers
-   ✓ Rate limiting
-   ✓ CORS protection
-   ✓ Request logging
+SECURITY FEATURES:
+  ✓ Helmet.js headers
+  ✓ Rate limiting
+  ✓ CORS protection
+  ✓ Request logging
         
- Health check: http://localhost:${PORT}/health
+Health check: http://localhost:${PORT}/health
+
         `);
     });
 }
